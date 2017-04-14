@@ -93,7 +93,7 @@ DB_R7               .BLKW #1
 ;*******************************************************************************
 ; CAN_MOVE
 ;   Checks if a move is valid and returns the new position
-;   Inputs: R0 - a move represented by ‘i’, ‘j’, ‘k’, or ‘l’
+;   Inputs: R0 - a move represented by "i", ‘j’, ‘k’, or ‘l’
 ;   Outputs: R1, R2 - the new row and new col, respectively
 ;            if the move is to an invalid (blocked or outside the GRID), R1 = -1
 ;*******************************************************************************
@@ -237,6 +237,21 @@ LOAD_JOURNEY
 ; Hint: There are 9 physical rows of characters and only 4 logical rows.
 ;*******************************************************************************
 GET_ADDRESS
+	LEA R0, GRID
+	AND R3, R3, #0
+	ADD R3, R3, #10
+	ADD R3, R3, #10	; R3 is counter
+	AND R4, R4, #0	; R4 is R1 x 0
+MultiplyR1x20
+	ADD R4, R4, R1	; 
+	ADD R3, R3, #-1	; Decrement counter
+	BRnp MultiplyR1x20
+	ADD R0, R4, R0	; R0 <- R4
+	ADD R0, R0, #10 ; R0 <- R0 + 10
+MultiplyR2x2
+	ADD R2, R2, R2	; R2 <- R2x2
+	ADD R2, R2, #1	; R2 <- R2 + 1
+	ADD R0, R2, R0	; R0 <- R2 + R0
 
                     RET
 
@@ -249,8 +264,28 @@ GET_ADDRESS
 ;   Outputs: R2 - 0 = valid; -1 = invalid
 ;*******************************************************************************
 IS_INPUT_VALID
+	LD R1, ASCIIi	; R1 has "i"
+	LD R3, ASCIIl	; R3 has "l"
+	NOT R1, R1
+	ADD R1, R1, #1	; R1 has "-i"
+	NOT R3, R3
+	ADD R3, R3, #1	; R3 has "-l"
+	ADD R4, R0, R1	; Compare input with "i"
+	BRn Invalid	; If hex value is lower than "i", invalid
+	ADD R4, R0, R3	; Compare input with "l"
+	BRp Invalid	; If hex value is higher than "l", invalid
+Valid
+	AND R2, R2, #0	; R2 <- 0
+	BRnzp Done
+Invalid
+	AND R2, R2, #0	
+	ADD R2, R2, #-1	; R2 <- -1
 
+Done
                     RET
+
+ASCIIi	.FILL x0105
+ASCIIl	.FILL x0108
 
 ;*******************************************************************************
 ; APPLY_MOVE
@@ -263,13 +298,17 @@ IS_INPUT_VALID
 ; movement is blocked, output a console message of your choice and return. This
 ; subroutine should also change CURRENT_ROW and CURRENT_COL if appropriate.
 ;   Inputs: R0 - a move represented by ‘i’, ‘j’, ‘k’, or ‘l’
+;   Inputs: R1, new row, R2, new col
 ;   Outputs: none
 ; Note: This subroutine calls CAN_MOVE and GET_ADDRESS.
 ;*******************************************************************************
 APPLY_MOVE
-
+	JSR CAN_MOVE
+	ST R0, TRAN_R0
+	
+	JSR GET_ADDRESS
                     RET
-
+TRAN_R0 .BLKW 1
 ;*******************************************************************************
 ; IS_GAME_OVER
 ;
