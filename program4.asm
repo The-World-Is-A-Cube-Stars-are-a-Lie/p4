@@ -222,9 +222,77 @@ END_COL             .BLKW   1           ; col position of the End point
 ;       * END_COL - initialize with the column of the End point
 ;*******************************************************************************
 LOAD_JOURNEY
+AND R6, R6, #0
+ST R7, SVLD_R7	;Save R7
+LoadJourney
+	LDR R1, R0, #0	;R1 has row
+	LDR R2, R0, #1	;R2 has column
+	LDR R3, R0, #2	;R3 has what to fill in
+	LDR R4, R0, #3	;R4 has address of next head
+	
+	ST R0, SVLD_R0	;Save R0-R2
+	ST R1, SVLD_R1
+	ST R2, SVLD_R2
+	ST R4, SVLD_R4
+	LD R0, HASHTAG
+	LD R1, CHAR_E
+	LD R2, CHAR_S
+	ADD R5, R3, R0
+	BRz FillOb
+	ADD R5, R3, R1
+	BRz FillE
+	ADD R5, R3, R2
+	BRz FillPlayer
+NextLink
+	LD R4, SVLD_R4
+	ADD R4, R4, #0
+	BRz ReturntoMain
+	ADD R0, R4, #0	;R0 has address of next head
+	BRnzp LoadJourney
 
+
+FillOb
+	LD R1, SVLD_R1	; R1 and R2 get current row and column
+	LD R2, SVLD_R2
+	JSR GET_ADDRESS
+	LD R3, HASHTAG	;R3 gets ASCII for #
+	STR R3, R0, #0
+	BRnzp NextLink
+FillE
+	LD R1, SVLD_R1
+	LD R2, SVLD_R2	; R1 and R2 get current row and column
+	JSR GET_ADDRESS	
+	LD R3, CHAR_EPos;R3 gets ASCCI for E
+	STR R3, R0, #0
+	ST R1, END_ROW
+	ST R2, END_COL
+	BRnzp NextLink
+FillPlayer
+	LD R1, SVLD_R1
+	LD R2, SVLD_R2
+	JSR GET_ADDRESS
+	LD R3, Player	;R3 gets ASCCI for *
+	STR R3, R0, #0
+	ST R1, CURRENT_ROW
+	ST R2, CURRENT_COL
+	BRnzp NextLink
+
+	
+	
+ReturntoMain
+LD R7, SVLD_R7
                     RET
+;Player 	.FILL x002A
+;HASHTAG	.FILL   x-23
+CHAR_E		.FILL x-45
+CHAR_EPos	.FILL x45
+CHAR_S		.FILL x-53
 
+SVLD_R0	.BLKW 1
+SVLD_R1	.BLKW 1
+SVLD_R2	.BLKW 1
+SVLD_R4	.BLKW 1
+SVLD_R7	.BLKW 1
 ;*******************************************************************************
 ; GET_ADDRESS
 ;
@@ -276,12 +344,12 @@ IS_INPUT_VALID
 	BRp Invalid	; If hex value is higher than "l", invalid
 Valid
 	AND R2, R2, #0	; R2 <- 0
-	BRnzp Done
+	BRnzp DoneValid
 Invalid
 	AND R2, R2, #0	
 	ADD R2, R2, #-1	; R2 <- -1
 
-Done
+DoneValid
                     RET
 
 ASCIIi	.FILL x0105
@@ -298,17 +366,87 @@ ASCIIl	.FILL x0108
 ; movement is blocked, output a console message of your choice and return. This
 ; subroutine should also change CURRENT_ROW and CURRENT_COL if appropriate.
 ;   Inputs: R0 - a move represented by ‘i’, ‘j’, ‘k’, or ‘l’
-;   Inputs: R1, new row, R2, new col
+;   Inputs: R1, new row, R2, new col (after calling CAN_MOVE)
 ;   Outputs: none
 ; Note: This subroutine calls CAN_MOVE and GET_ADDRESS.
 ;*******************************************************************************
 APPLY_MOVE
+	ST R7, SVAP_R7
+	LD R1, CURRENT_ROW
+	LD R2, CURRENT_COL
+	ST R1, SVAP_R1
+	ST R2, SVAP_R2
 	JSR CAN_MOVE
-	ST R0, TRAN_R0
+	ST R0, SVAP_R0 		; Saves the input character
+	ST R1, CURRENT_ROW 	; Saves R1' and R2' to current row and column
+	ST R2, CURRENT_COL
+	LD R1, SVAP_R1 		; Restores current row and column to R1 and R2
+	LD R2, SVAP_R2
+	JSR GET_ADDRESS		; R0 has address of current *
+	LD R3, Space		; R3 has ASCII for space
+	STR R3, R0, #0 		; Replaces * with space
+	ADD R1, R0, #0 		; R1 has current address
+	LD R0, SVAP_R0 		; restore R0 to move
+	LD R2, NegI
+	LD R3, NegJ
+	LD R4, NegK
+	LD R5, NegL
+	ADD R6, R0, R2
+	BRz ClearUp
+	ADD R6, R0, R4
+	BRz ClearDown
+	ADD R6, R0, R3
+	BRz ClearLeft
+	ADD R6, R0, R5
+	BRz ClearRight
+	ADD R0, R1, #0		; R0 has address of current *
+NextInstruction
+	LD R1, CURRENT_ROW 	; R1 and R2 has new row and column
+	LD R2, CURRENT_COL
+	JSR GET_ADDRESS 	; R0 has address of new row and column
+	LD R3, Player		; R3 has ASCII for *
+	STR R3, R0, #0		; Replaces space with of new row and column with *
+	BRnzp DoneApply
+
+ClearUp ; R1 has current address
+	ADD R2, R1, #-10 	; R2 has address of wall above current space
+	LD R3, Space		; R3 has ASCCI for Space
+	STR R3, R2, #0
+	BRnzp NextInstruction
+
+ClearDown ; R1 has current address
+	ADD R2, R1, #10 	; R2 has address of wall below current space
+	LD R3, Space		; R3 has ASCCI for Space
+	STR R3, R2, #0
+	BRnzp NextInstruction
+
+ClearLeft ; R1 has current address
+	ADD R2, R1, #-1 	; R2 has address of wall left of current space
+	LD R3, Space		; R3 has ASCCI for Space
+	STR R3, R2, #0
+	BRnzp NextInstruction
 	
-	JSR GET_ADDRESS
+ClearRight ; R1 has current address
+	ADD R2, R1, #1 	; R2 has address of wall above current space
+	LD R3, Space		; R3 has ASCCI for Space
+	STR R3, R2, #0
+	BRnzp NextInstruction
+	
+
+DoneApply
+
+	LD R7, SVAP_R7
                     RET
-TRAN_R0 .BLKW 1
+SVAP_R0 	.BLKW 1
+SVAP_R1 	.BLKW 1
+SVAP_R2 	.BLKW 1
+SVAP_R7 	.BLKW 1
+NegI	.FILL   x-69
+NegJ	.FILL   x-6A
+NegK	.FILL   x-6B
+NegL 	.FILL   x-6C
+Player 	.FILL x002A
+Space	.FILL x0020
 ;*******************************************************************************
 ; IS_GAME_OVER
 ;
@@ -318,7 +456,21 @@ TRAN_R0 .BLKW 1
 ;   Outputs: R2 - 0 if game over; -1 if game not over
 ;*******************************************************************************
 IS_GAME_OVER
+	JSR CAN_MOVE
+	JSR GET_ADDRESS
+	LDR R1, R0, #0	;R1 gets contents of address
+	LD R2, CHAR_E	;R2 gets ASCII -E
+	AND R4, R4, #0
+	ADD R3, R1, R2
+	BRz GameOver
+GameNotOver
+ADD R2, R4, -1
+BRnzp ReturnMain
 
+GameOver
+AND R2, R2, #0
+
+ReturnMain
                     RET
 
 .END
